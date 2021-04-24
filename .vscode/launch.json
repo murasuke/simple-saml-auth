@@ -1,0 +1,41 @@
+{
+  // require('ts-node').register() を使う場合のデバッグ設定
+  "version": "0.2.0",
+  "configurations": [    
+    {
+      "type": "pwa-node",
+      "request": "launch",
+      "name": "Launch node Program",
+      "skipFiles": [
+        "<node_internals>/**"
+      ],
+      "program": "${workspaceFolder}\\bin\\www",
+      "outFiles": [
+        "${workspaceFolder}/**/*.js"
+      ],
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**"
+      ]
+    },
+    {
+      "type": "pwa-node",
+      "request": "attach",
+      "name": "Attach node program",
+      "processId": "${command:PickProcess}",      
+    },
+    {
+      "name": "Debug Jest Tests",
+      "type": "node",
+      "request": "launch",
+      "runtimeArgs": [
+        "--inspect-brk",
+        "${workspaceRoot}/node_modules/jest/bin/jest.js",
+        "--runInBand"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "port": 9229
+    }
+  ]
+}
