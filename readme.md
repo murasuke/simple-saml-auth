@@ -6,6 +6,7 @@
 1. [テスト用ページ作成](#anchor4)
 1. [認証用Route設定](#anchor5)
 1. [テスト用IdPの設定](#anchor6)
+1. [動作確認](#anchor7)
 
 ## 1:目的 <a id="anchor0"></a>
 
@@ -49,18 +50,59 @@ npm install
 ```
 ----
 ## 3:利用モジュールのインストール <a id="anchor2"></a>
-  必要なモジュール(と型定義)をインストールします(TypeScript関連)
+  * 必要なモジュール(と型定義)をインストールします(TypeScript関連)
 ```bash
 npm i -D typescript nodemon @types/cookie-parser @types/express
-npm i ts-node 
+npm i ts-node express-session
 ```
-  * saml-idp (https://www.npmjs.com/package/saml-idp)
-    テスト用IdP（Identity Provider）
+  * saml-idpを追加 (https://www.npmjs.com/package/saml-idp)
+
+  コマンドラインから起動できるテスト用のIdP（Identity Provider）です。
 ```bash
 npm i -D saml-idp
 ```
+
+  * passportとpassport-samlを追加(nodeの認証用モジュール)
+```bash
+npm i passport passport-saml
+npm i -D @types/passport
+```
+
+  * インストール後のpackage.json (概ねこのようなファイルになっていると思います）
+```json
+{
+  "name": "simple-saml-auth",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node ./bin/www"
+  },
+  "dependencies": {
+    "cookie-parser": "~1.4.4",
+    "debug": "~2.6.9",
+    "ejs": "~2.6.1",
+    "express": "~4.16.1",
+    "express-session": "^1.17.1",
+    "http-errors": "~1.6.3",
+    "morgan": "~1.9.1",
+    "passport": "^0.4.1",
+    "passport-saml": "^2.2.0",
+    "ts-node": "^9.1.1"
+  },
+  "devDependencies": {
+    "@types/cookie-parser": "^1.4.2",
+    "@types/express": "^4.17.11",
+    "@types/passport": "^1.0.6",
+    "nodemon": "^2.0.7",
+    "saml-idp": "^1.2.1",
+    "typescript": "^4.2.4"
+  }
+}
+```
+
+
   * 動作確認のため、ターミナルで下記を実行し「localhost:3000」を開きます。
-    
+  「Welcome to Express」と表示されたら成功です。
 ```
 npm run start
 ```
@@ -126,8 +168,55 @@ export default router;
   * 認証が必要なページ
 
 ## 6:認証用Route設定 <a id="anchor5"></a>
-  * 
+  * auth.ts追加
+  * app.tsに組み込み
 
-## 7:テスト用IdPの設定 <a id="anchor6"></a>
+## 7:テスト用IdP(saml-idp)の設定 <a id="anchor6"></a>
   * IdP用証明書ファイル作成
+    * 作成したファイルをプロジェクトルートに配置します。(ルートディレクトリでコマンドを実行すれば、コピーする必要はありません)
+```bash
+openssl req -x509 -new -newkey rsa:2048 -nodes  -keyout idp-private-key.pem -out idp-public-cert.pem -days 7300
+Generating a RSA private key
+```
+    * Country Name(国名), State or Province Name(県名), Locality Name(都市名)などは、テスト用途なので適当に入力してください。
+    * 出力するファイル名(idp-public-cert.pem)は、saml-idpのデフォルト名を指定しています。変更する場合は、起動時のコマンドライン指定を修正する必要があります。
+
+作成コマンドサンプル
+```
+$ openssl req -x509 -new -newkey rsa:2048 -nodes  -keyout idp-private-key.pem -out idp-public-cert.pem -days 7300
+Generating a RSA private key
+.....+++++
+......+++++
+writing new private key to 'idp-private-key.pem'
+-----
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Country Name (2 letter code) [AU]:JP
+State or Province Name (full name) [Some-State]:Aichi
+Locality Name (eg, city) []:Nagoya
+Organization Name (eg, company) [Internet Widgits Pty Ltd]:
+Organizational Unit Name (eg, section) []:
+Common Name (e.g. server FQDN or YOUR name) []:Test Identity Provider
+Email Address []:tkyk.niimura@gmail.com
+```
+
   * 起動用スクリプト登録
+    * package.jsonの"scripts"に、テスト用IdP起動スクリプトを追加します。
+```json
+"saml-idp": "saml-idp --acs http://localhost:7000/auth/saml --aud mock-audience"
+```
+
+## 7:動作確認 <a id="anchor7"></a>
+  * テスト用Idpサーバ(saml-idp)を起動します
+```bash
+npm run saml-idp
+```
+  * プログラムを起動します
+```bash
+npm run start
+```

@@ -3,9 +3,12 @@ var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
+import session from 'express-session';
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
+import page1 from './routes/page1';
+import samlAuth, {samlPassport} from './routes/auth';
 
 var app = express();
 
@@ -21,6 +24,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+
+// samlによる認証処理
+app.use(session({secret: 'paosiduf'}));
+app.use(samlPassport.initialize());
+app.use(samlPassport.session());
+app.use(samlAuth);
+
+app.use('/page1', page1);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {

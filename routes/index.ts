@@ -4,9 +4,9 @@ var router = express.Router();
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Express' });
+  res.render('index', { uid: (req.user as any ).username });
 });
 
-// importでもrequire()でも読み込めるように2種類export
-module.exports = router;
+// importでもrequire()でも読み込めるように2種類expor
+// module.exports = router;
 export default router;

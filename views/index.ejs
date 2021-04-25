@@ -1,11 +1,19 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title><%= title %></title>
+    <title>トップページ(認証不要)</title>
     <link rel='stylesheet' href='/stylesheets/style.css' />
   </head>
   <body>
-    <h1><%= title %></h1>
-    <p>Welcome to <%= title %></p>
+    <div>
+      <% if (uid) { %>
+        Welcome to <%= uid %>さん <a href='/auth/login'>ログアウト</a> 
+      <% } else { %>
+        <a href='/auth/login'>ログイン</a>
+      <% } %>      
+    </div>
+    <div>
+       <p><a href='/page1'>ログインが必要なページ</a></p>
+    </div>
   </body>
 </html>
