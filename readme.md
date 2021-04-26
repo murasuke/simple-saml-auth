@@ -215,7 +215,6 @@ viewsフォルダのファイルを追加、修正する。
 
 ## 6:認証用Route設定 <a id="anchor5"></a>
   * auth.ts追加
-
   * app.tsに組み込み
 
 ## 7:テスト用IdP(saml-idp)の設定 <a id="anchor6"></a>
