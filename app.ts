@@ -3,9 +3,14 @@ var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
+import session from 'express-session';
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
+
+// 追加ルート
+import samlAuth, {samlPassport} from './routes/auth';
+import page1 from './routes/page1';
 
 var app = express();
 
@@ -19,8 +24,16 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// samlによる認証処理
+app.use(session({secret: 'paosiduf'}));
+app.use(samlPassport.initialize());
+app.use(samlPassport.session());
+app.use(samlAuth);
+
+// 認証モジュールの後にルートを追加する(先に認証チェックを行うため)
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+app.use('/page1', page1);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
