@@ -7,8 +7,6 @@ import session from 'express-session';
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
-import page1 from './routes/page1';
-import samlAuth, {samlPassport} from './routes/auth';
 
 // 追加ルート
 import samlAuth, {samlPassport} from './routes/auth';
@@ -35,14 +33,6 @@ app.use(samlAuth);
 // 認証モジュールの後にルートを追加する(先に認証チェックを行うため)
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
-app.use('/page1', page1);
-
-// samlによる認証処理
-app.use(session({secret: 'paosiduf'}));
-app.use(samlPassport.initialize());
-app.use(samlPassport.session());
-app.use(samlAuth);
-
 app.use('/page1', page1);
 
 // catch 404 and forward to error handler
