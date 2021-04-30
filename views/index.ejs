@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>トップページ(認証不要)</title>
+    <link rel='stylesheet' href='/stylesheets/style.css' />
+  </head>
+  <body>
+    <div>
+      トップページ(認証不要)
+      <p>
+      <% if (uid) { %>
+        ユーザ名[<%= uid %>] <a href='/logout'>ログアウト</a> 
+      <% } else { %>
+        <a href='/login'>ログイン</a>
+      <% } %>
+      </p>   
+    </div>
+    <div>
+       <p><a href='/page1'>ログインが必要なページ</a></p>
+    </div>
+  </body>
+</html>
