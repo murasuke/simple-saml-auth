@@ -13,7 +13,9 @@ import path from 'path';
 
 export const samlPassport = passport;
 
-// saml認証で受け取った値をそのまま利用する
+// sessionへのシリアライズ、デシリアライズ処理
+// saml認証で受け取った値をそのままセットしている
+// idだけをセッションに保存し、デシリアライズ時にDBから復元するなどの処理を行う
 passport.serializeUser<any>((user, done) => {
   done(null, user);
 });
@@ -22,7 +24,7 @@ passport.deserializeUser<any>((user, done) => {
   done(null, user);
 });
 
-// samll認証用の設定
+// saml認証用の設定
 const samlStrategy = new Strategy(
   {
     // URL that goes from the Identity Provider -> Service Provider
@@ -58,7 +60,8 @@ const authModule = passport.authenticate('saml', { failureRedirect: '/login/fail
  
  /**
   * idpで認証後のコールバックURL
-  * ⇒ユーザ情報が「req.user」にセットされている
+  * ・この時点で、認証されたユーザ情報が「req.user」にセットされる
+  * ・リクエスト時のURLにリダイレクトする
   */
 router.post('/login/callback', authModule, (req, res) => {
   console.log('/login/callback', req.user);
@@ -110,6 +113,7 @@ router.all(['/*'], (req, res, next) => {
   }
 
   console.log(`${req.url} Not authenticated. Redirect to /login`);
+  // リクエストされたurlをセッションに保存してから、idpへ認証を依頼
   (req as any).session.requestUrl = req.url;
   return authModule(req, res, next);
 });

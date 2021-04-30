@@ -8,16 +8,17 @@
 1. [テスト用IdPの設定](#anchor6)
 1. [動作確認](#anchor7)
 
-## 1:目的 <a id="anchor0"></a>
+## 1:目的と概要 <a id="anchor0"></a>
 
   * テスト用IdPを使い、saml認証を行います。
   * トップページは認証不要、認証が必要ページに遷移する場合は認証画面を表示します。
   * ログイン、ログアウト機能を持ちます
 
-
 ## 2:express-generatorでひな形作成 <a id="anchor1"></a>
+
   * express
     * express-generator でカレントフォルダにひな形を生成します
+
 ```bash
 npx express-generator --view=ejs --git ./
 ```
@@ -45,30 +46,39 @@ npx express-generator --view=ejs --git ./
 ```
 
    * package.jsonに記載されたモジュールをインストールします。
+
 ```bash
 npm install
 ```
+
+  * 動作確認のため、ターミナルで下記を実行し「localhost:3000」を開きます。
+  ブラウザで開き「Welcome to Express」と表示されたら成功です。
+
+```
+npm run start
+```
+
+
 ----
 ## 3:利用モジュールのインストール <a id="anchor2"></a>
+
   * 必要なモジュール(と型定義)をインストールします(TypeScript関連)
+
 ```bash
 npm i -D typescript nodemon @types/cookie-parser @types/express
 npm i ts-node express-session
 ```
-  * saml-idpを追加 (https://www.npmjs.com/package/saml-idp)
 
-  コマンドラインから起動できるテスト用のIdP（Identity Provider）です。
-```bash
-npm i -D saml-idp
-```
 
   * passportとpassport-samlを追加(nodeの認証用モジュール)
+
 ```bash
 npm i passport passport-saml
 npm i -D @types/passport
 ```
 
   * インストール後のpackage.json (概ねこのようなファイルになっていると思います）
+
 ```json
 {
   "name": "simple-saml-auth",
@@ -100,13 +110,6 @@ npm i -D @types/passport
 }
 ```
 
-
-  * 動作確認のため、ターミナルで下記を実行し「localhost:3000」を開きます。
-  「Welcome to Express」と表示されたら成功です。
-```
-npm run start
-```
-
 ## 4:TypeScript化 <a id="anchor3"></a>
 
 1. Typescriptの設定ファイルを作成します(tsconfig.json)
@@ -127,21 +130,24 @@ mv ./bin/www ./bin/www.ts
 touch ./bin/www.js
 echo -e "require('ts-node').register({transpileOnly: true});\nrequire('./www.ts');" > ./bin/www.js
 ```
-「{transpileOnly: true}」は、起動高速化のためです(型チェックを行いません)
+「{transpileOnly: true}」は、起動を高速化するため(型チェックを行いません)
 
  　⇒型チェックはエディタ側に任せて、トランスパイルに専念させます。
 
 4. tsconfig.json 下記行のコメントを1行外しfalseに変更します。
-(型指定のない変数を許可、後でtrueに戻すとより型安全性が向上します)
+(元がjsのため型指定のない変数を許可しないとコンパイルエラーとなるためです。
+trueに戻して適切に型を付けると安全性が向上します)
 ```json
 "noImplicitAny": false,
 ```
 
-5. これでtypescript化したexpressアプリケーションが動作します。
+5. typescript化したexpressアプリケーションが起動することを確認します。
+
 ```bash
 npm run start
 ```
-* 現時点では、型推論が行われないため下記の変更を行います。型チェック、オートコンプリートが行われるようになります。
+
+* 現時点(require()での読み込み)では、型推論が行われないためimportに変更ます。型チェック、オートコンプリートが行われるようになります。
   * require() ⇒ import
   * module.exports ⇒ export default
 
@@ -156,7 +162,7 @@ router.get('/', function(req, res, next) {
   res.render('index', { title: 'Express' });
 });
 
-// importでもrequire()でも読み込めるように2種類export
+// importでもrequire()でも読み込めるようにmodule.exportを残しておきます
 module.exports = router;
 export default router;
 ```
@@ -214,20 +220,169 @@ viewsフォルダのファイルを追加、修正する。
 ```
 
 ## 6:認証用Route設定 <a id="anchor5"></a>
-  * auth.ts追加
+* auth.ts追加
+  * ユーザーのシリアライズ、デシリアライズ処理
+
+```javascript
+// sessionへのシリアライズ、デシリアライズ処理
+// saml認証で受け取った値をそのままセットしている
+// idだけをセッションに保存し、デシリアライズ時にDBから復元するなどの処理を行う
+passport.serializeUser<any>((user, done) => {
+  done(null, user);
+});
+
+passport.deserializeUser<any>((user, done) => {
+  done(null, user);
+});
+```
+
+  * saml認証用のStrategy設定
+```javascript
+// saml認証用の設定
+const samlStrategy = new Strategy(
+  {
+    // URL that goes from the Identity Provider -> Service Provider
+    callbackUrl: 'http://localhost:3000/login/callback',
+    // URL that goes from the Service Provider -> Identity Provider
+    entryPoint: 'http://localhost:7000/saml/sso',
+    
+    issuer: 'saml_test_issuer',
+    identifierFormat: undefined, // urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
+
+    // Identity Providerのサーバ証明書
+    cert: fs.readFileSync('idp-public-cert.pem', 'utf8'),
+    validateInResponseTo: false,
+    disableRequestedAuthnContext: true,
+  },
+  (profile, done) => done(null, profile)
+);
+passport.use(samlStrategy);
+```
+
+  * ログイン処理
+  
+```javascript
+   router.get('/login', authModule, (req, res) => {
+   res.redirect('/');
+ });
+```
+  
+* ログイン処理
+  
+```javascript
+ /**
+  * idpで認証後のコールバックURL
+  * ・この時点で、認証されたユーザ情報が「req.user」にセットされる
+  * ・リクエスト時のURLにリダイレクトする
+  */
+router.post('/login/callback', authModule, (req, res) => {
+  console.log('/login/callback', req.user);
+  if ((req as any).session) {
+    res.redirect((req as any).session.requestUrl);
+    delete (req as any).session.requestUrl;
+  } else {
+    res.redirect('/');
+  }   
+});
+```
+  
+* ログイン失敗時の処理
+  
+```javascript
+router.get('/login/fail', (req, res) => {
+  res.status(401).send('Login failed');
+});
+
+  ```
+  
+* ログアウト
+  
+```javascript
+/**
+* ログアウト
+* ・'/'にアクセスしても、認証情報がないため再度認証画面へ飛ばされる。
+*/
+router.get('/logout', (req, res) => {
+  req.logout();
+  res.redirect('/');
+});
+  ```
+   
+* 認証チェック
+  
+```javascript
+// 認証無しで許可するパス(チェックは手抜きです。適切に書き換えてください)
+const allowPaths = ['/stylesheets', '/images', '/javascript', '/favicon.ico'];
+
+/**
+* 認証チェック
+* ・全てのReact側からの通信に対して、認証チェックを行う
+*   ⇒認証されていない場合は、saml認証を行う
+*/
+router.all(['/*'], (req, res, next) => {
+  if (req.isAuthenticated()) {
+    console.log(`Authenticated:${JSON.stringify(req.user)}`);
+    return next();
+  }
+
+  if (req.url === '/' ) {
+    // topページは認証不要
+    return next();
+  }
+
+  if (allowPaths.some((path) => req.url.startsWith(path))) {
+    // 許可するパス
+    return next();
+  }
+
+  console.log(`${req.url} Not authenticated. Redirect to /login`);
+  // リクエストされたurlをセッションに保存してから、idpへ認証を依頼
+  (req as any).session.requestUrl = req.url;
+  return authModule(req, res, next);
+});
+ 
+```
+
+
   * app.tsに組み込み
 
+  ページ表示時、認証が先に行われるようにするため「認証モジュールの組み込み」を先に行います。
+
+```typescript
+// samlによる認証処理
+app.use(session({secret: 'paosiduf'}));
+app.use(samlPassport.initialize());
+app.use(samlPassport.session());
+app.use(samlAuth);
+
+// 認証モジュールの後にルートを追加する(先に認証チェックを行うため)
+app.use('/', indexRouter);
+app.use('/users', usersRouter);
+app.use('/page1', page1);
+```
+
 ## 7:テスト用IdP(saml-idp)の設定 <a id="anchor6"></a>
+  * saml-idpをpackage.jsonへ追加 (https://www.npmjs.com/package/saml-idp)
+
+  コマンドラインから起動できるテスト用のIdP（Identity Provider）です。
+
+```bash
+npm i -D saml-idp
+```
+
   * IdP用証明書ファイル作成
     * 作成したファイルをプロジェクトルートに配置します。(ルートディレクトリでコマンドを実行すれば、コピーする必要はありません)
+
 ```bash
 openssl req -x509 -new -newkey rsa:2048 -nodes  -keyout idp-private-key.pem -out idp-public-cert.pem -days 7300
 Generating a RSA private key
 ```
-    * Country Name(国名), State or Province Name(県名), Locality Name(都市名)などは、テスト用途なので適当に入力してください。
-    * 出力するファイル名(idp-public-cert.pem)は、saml-idpのデフォルト名を指定しています。変更する場合は、起動時のコマンドライン指定を修正する必要があります。
+
+  * Country Name(国名), State or Province Name(県名), Locality Name(都市名)などは、テスト用途なので適当に入力してください。
+  * 出力するファイル名(idp-public-cert.pem)は、saml-idpのデフォルト名を指定しています。変更する場合は、起動時のコマンドライン指定を修正する必要があります。
 
 作成コマンドサンプル
+
 ```
 $ openssl req -x509 -new -newkey rsa:2048 -nodes  -keyout idp-private-key.pem -out idp-public-cert.pem -days 7300
 Generating a RSA private key
@@ -253,16 +408,84 @@ Email Address []:tkyk.niimura@gmail.com
 
   * 起動用スクリプト登録
     * package.jsonの"scripts"に、テスト用IdP起動スクリプトを追加します。
+
 ```json
 "saml-idp": "saml-idp --acs http://localhost:7000/auth/saml --aud mock-audience"
 ```
 
-## 7:動作確認 <a id="anchor7"></a>
+## 8:動作確認 <a id="anchor7"></a>
   * テスト用Idpサーバ(saml-idp)を起動します
+
 ```bash
-npm run saml-idp
+$ npm run saml-idp
+
+> simple-saml-auth@0.0.0 saml-idp C:\Users\t_nii\Documents\git\auth\simple-saml-auth
+> saml-idp --acs http://localhost:7000/auth/saml --aud mock-audience
+
+Listener Port:  
+  localhost:7000
+HTTPS Enabled:
+  false
+
+[Identity Provider]
+
+Issuer URI:
+  urn:example:idp
+Sign Response Message:
+  true
+Encrypt Assertion:
+  false
+Authentication Context Class Reference:
+  urn:oasis:names:tc:SAML:2.0:ac:classes:PasswordProtectedTransport
+Authentication Context Declaration:
+  None
+Default RelayState:
+  None
+
+[Service Provider]
+
+Issuer URI:
+  None
+Audience URI:
+  mock-audience
+ACS URL:
+  http://localhost:7000/auth/saml
+SLO URL:
+  None
+Trust ACS URL in Request:
+  true
+
+Starting IdP server on port localhost:7000...
+
+IdP Metadata URL:
+  http://localhost:7000/metadata
+
+SSO Bindings:
+  urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST
+    => http://localhost:7000/saml/sso
+  urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Redirect
+    => http://localhost:7000/saml/sso
+
+IdP server ready at
+  http://localhost:7000
 ```
+
+
   * プログラムを起動します
+
 ```bash
 npm run start
 ```
+
+##＃ 動作確認
+
+* トップページを表示(localhost:3000)
+  * 認証不要のため、ログイン画面は表示されません
+
+
+* ログインが必要なページを表示(localhost:3000/page1)
+  * ログイン画面が表示される。「Sign in」を押下すると「/page1」にダイレクトし、ユーザ名が表示される。
+
+* 一度ログインした後はログイン画面が表示されない。
+
+* トップページから「ログアウト(localhost:3000/logout)」すると、再度ログインが必要となる。
