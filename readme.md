@@ -1,4 +1,4 @@
-# SAMLによるシングルサインオンサンプル(node-expressとsaml-idp利用)
+# ローカル環境のみで完結するSAMLログインサンプル(node-expressとsaml-idp利用)
 1. [目的](#anchor0)
 1. [express-generatorでひな形作成](#anchor1)
 1. [利用モジュールのインストール](#anchor2)
