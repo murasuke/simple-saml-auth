@@ -8,6 +8,92 @@
 1. [テスト用IdPの設定](#anchor6)
 1. [動作確認](#anchor7)
 
+
+### 更新履歴
+* 2023/03/06
+
+[@kino15](https://qiita.com/kino15)さんから「Passport.js v0.6.0」にするとsessionの仕様変更により動かなくなるという情報をいただいたので、各ライブラリを最新にして動くように変更しました。
+
+* ライブラリ変更点
+```json
+  "dependencies": {
+-    "cookie-parser": "~1.4.4",
+-    "debug": "~2.6.9",
+-    "ejs": "~2.6.1",
+-    "express": "~4.16.1",
+-    "express-session": "^1.17.1",
+-    "http-errors": "~1.6.3",
+-    "morgan": "~1.9.1",
+-    "passport": "^0.4.1",
++    "cookie-parser": "~1.4.6",
++    "debug": "~4.3.4",
++    "ejs": "~3.1.8",
++    "express": "~4.18.2",
++    "express-session": "^1.17.3",
++    "http-errors": "~2.0.0",
++    "morgan": "~1.10.0",
++    "passport": "^0.6.0",
+    "passport-saml": "^2.2.0",
+-    "ts-node": "^9.1.1"
++    "ts-node": "^10.9.1"
+  },
+  "devDependencies": {
+-    "@types/cookie-parser": "^1.4.2",
+-    "@types/express": "^4.17.11",
+-    "@types/passport": "^1.0.6",
+-    "nodemon": "^2.0.7",
++    "@types/cookie-parser": "^1.4.3",
++    "@types/express": "^4.17.17",
++    "@types/passport": "^1.0.12",
++    "nodemon": "^2.0.21",
+    "saml-idp": "^1.2.1",
+-    "typescript": "^4.2.4"
++    "typescript": "^4.9.5"
+  }
+```
+
+(主な)ソース変更点(auth.ts)
+
+* 流入元のURLをsessionで引き継げるようにするため、ログイン後もsessionIDを引き継ぐように指定
+```ts
+const router = express.Router();
+- const authModule = passport.authenticate('saml', { failureRedirect: '/login/fail' });
++ const authModule = passport.authenticate('saml', { failureRedirect: '/login/fail', keepSessionInfo: true });
+```
+
+* session有無チェックの条件を変更(`requestUrl`も含める)
+```ts
+router.post('/login/callback', authModule, (req, res) => {
+  console.log('/login/callback', req.user);
+-  if ((req as any).session) {
++  if ((req as any).session?.requestUrl) {
+    res.redirect((req as any).session.requestUrl);
+    delete (req as any).session.requestUrl;
+  } else {
+    res.redirect('/');
+  }
+});
+```
+
+* ログアウト後の処理をcallback関数内に移動
+```ts
+-router.get('/logout', (req, res) => {
+-  req.logout();
+-  res.redirect('/');
++router.get('/logout', (req, res, next) => {
++  req.logout(function (err) {
++    if (err) {
++      return next(err);
++    }
++    res.redirect('/');
++  });
+});
+
+```
+
+### こちらのページも参照(不具合指摘をいただいたページ)
+https://qiita.com/kino15/items/08888f85c364de47cafd
+
 ## 1:目的と概要 <a id="anchor0"></a>
 
   * テスト用IdPを使い、saml認証を行います。
@@ -185,11 +271,11 @@ viewsフォルダのファイルを追加、修正する。
       トップページ(認証不要)
       <p>
       <% if (uid) { %>
-        ユーザ名[<%= uid %>] <a href='/logout'>ログアウト</a> 
+        ユーザ名[<%= uid %>] <a href='/logout'>ログアウト</a>
       <% } else { %>
         <a href='/login'>ログイン</a>
       <% } %>
-      </p>   
+      </p>
     </div>
     <div>
        <p><a href='/page1'>ログインが必要なページ</a></p>
@@ -211,7 +297,7 @@ viewsフォルダのファイルを追加、修正する。
     <div>
       認証が必要なテストページ
       <p>ユーザ名[<%= uid %>]</p>
-    </div>    
+    </div>
     <div>
        <p><a href='/'>トップページへ戻る</a></p>
     </div>
@@ -245,7 +331,7 @@ const samlStrategy = new Strategy(
     callbackUrl: 'http://localhost:3000/login/callback',
     // URL that goes from the Service Provider -> Identity Provider
     entryPoint: 'http://localhost:7000/saml/sso',
-    
+
     issuer: 'saml_test_issuer',
     identifierFormat: undefined, // urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
 
@@ -260,15 +346,15 @@ passport.use(samlStrategy);
 ```
 
   * ログイン処理
-  
+
 ```javascript
    router.get('/login', authModule, (req, res) => {
    res.redirect('/');
  });
 ```
-  
+
 * ログイン処理
-  
+
 ```javascript
  /**
   * idpで認証後のコールバックURL
@@ -277,39 +363,42 @@ passport.use(samlStrategy);
   */
 router.post('/login/callback', authModule, (req, res) => {
   console.log('/login/callback', req.user);
-  if ((req as any).session) {
+  if ((req as any).session?.requestUrl) {
     res.redirect((req as any).session.requestUrl);
     delete (req as any).session.requestUrl;
   } else {
     res.redirect('/');
-  }   
+  }
 });
 ```
-  
+
 * ログイン失敗時の処理
-  
+
 ```javascript
 router.get('/login/fail', (req, res) => {
   res.status(401).send('Login failed');
 });
+```
 
-  ```
-  
 * ログアウト
-  
+
 ```javascript
 /**
 * ログアウト
 * ・'/'にアクセスしても、認証情報がないため再度認証画面へ飛ばされる。
 */
-router.get('/logout', (req, res) => {
-  req.logout();
-  res.redirect('/');
+router.get('/logout', (req, res, next) => {
+  req.logout(function (err) {
+    if (err) {
+      return next(err);
+    }
+    res.redirect('/');
+  });
 });
   ```
-   
+
 * 認証チェック
-  
+
 ```javascript
 // 認証無しで許可するパス(チェックは手抜きです。適切に書き換えてください)
 const allowPaths = ['/stylesheets', '/images', '/javascript', '/favicon.ico'];
@@ -340,7 +429,7 @@ router.all(['/*'], (req, res, next) => {
   (req as any).session.requestUrl = req.url;
   return authModule(req, res, next);
 });
- 
+
 ```
 
 
@@ -422,7 +511,7 @@ $ npm run saml-idp
 > simple-saml-auth@0.0.0 saml-idp C:\Users\t_nii\Documents\git\auth\simple-saml-auth
 > saml-idp --acs http://localhost:7000/auth/saml --aud mock-audience
 
-Listener Port:  
+Listener Port:
   localhost:7000
 HTTPS Enabled:
   false

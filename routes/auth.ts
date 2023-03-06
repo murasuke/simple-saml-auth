@@ -31,7 +31,7 @@ const samlStrategy = new Strategy(
     callbackUrl: 'http://localhost:3000/login/callback',
     // URL that goes from the Service Provider -> Identity Provider
     entryPoint: 'http://localhost:7000/saml/sso',
-    
+
     issuer: 'saml_test_issuer',
     identifierFormat: undefined, // urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress
 
@@ -46,63 +46,67 @@ const samlStrategy = new Strategy(
 console.log(JSON.stringify(samlStrategy, null, '  '));
 passport.use(samlStrategy);
 
-
 const router = express.Router();
-const authModule = passport.authenticate('saml', { failureRedirect: '/login/fail' });
+const authModule = passport.authenticate('saml', {
+  failureRedirect: '/login/fail',
+  keepSessionInfo: true,
+});
 
- /**
-  * ログイン処理
-  */
- router.get('/login', authModule, (req, res) => {
-   res.redirect('/');
- });
- 
- 
- /**
-  * idpで認証後のコールバックURL
-  * ・この時点で、認証されたユーザ情報が「req.user」にセットされる
-  * ・リクエスト時のURLにリダイレクトする
-  */
+/**
+ * ログイン処理
+ */
+router.get('/login', authModule, (req, res) => {
+  res.redirect('/');
+});
+
+/**
+ * idpで認証後のコールバックURL
+ * ・この時点で、認証されたユーザ情報が「req.user」にセットされる
+ * ・リクエスト時のURLにリダイレクトする
+ */
 router.post('/login/callback', authModule, (req, res) => {
   console.log('/login/callback', req.user);
-  if ((req as any).session) {
+  if ((req as any).session?.requestUrl) {
     res.redirect((req as any).session.requestUrl);
     delete (req as any).session.requestUrl;
   } else {
     res.redirect('/');
-  }   
+  }
 });
- 
+
 /**
-* ログイン失敗時の処理
-*/
+ * ログイン失敗時の処理
+ */
 router.get('/login/fail', (req, res) => {
   res.status(401).send('Login failed');
 });
 
 /**
-* ログアウト
-* ・'/'にアクセスしても、認証情報がないため再度認証画面へ飛ばされる。
-*/
-router.get('/logout', (req, res) => {
-  req.logout();
-  res.redirect('/');
+ * ログアウト
+ * ・'/'にアクセスしても、認証情報がないため再度認証画面へ飛ばされる。
+ */
+router.get('/logout', (req, res, next) => {
+  req.logout(function (err) {
+    if (err) {
+      return next(err);
+    }
+    res.redirect('/');
+  });
 });
-
 
 const allowPaths = ['/stylesheets', '/images', '/javascript', '/favicon.ico'];
 /**
-* 認証チェック
-* ・全てのReact側からの通信に対して、認証チェックを行う
-*   ⇒認証されていない場合は、saml認証を行う
-*/
+ * 認証チェック
+ * ・全ての通信に対して、認証チェックを行う
+ *   ⇒認証されていない場合は、saml認証を行う
+ */
 router.all(['/*'], (req, res, next) => {
   if (req.isAuthenticated()) {
     console.log(`Authenticated:${JSON.stringify(req.user)}`);
     return next();
   }
 
-  if (req.url === '/' ) {
+  if (req.url === '/') {
     // topページは認証不要
     return next();
   }
@@ -117,6 +121,5 @@ router.all(['/*'], (req, res, next) => {
   (req as any).session.requestUrl = req.url;
   return authModule(req, res, next);
 });
- 
- export default router;
- 
+
+export default router;
