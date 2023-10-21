@@ -233,7 +233,7 @@ trueに戻して適切に型を付けると安全性が向上します)
 npm run start
 ```
 
-* 現時点(require()での読み込み)では、型推論が行われないためimportに変更ます。型チェック、オートコンプリートが行われるようになります。
+* 現時点(require()での読み込み)では、型推論が行われないためimportに変更します（型チェック、オートコンプリートが行われるようになる）
   * require() ⇒ import
   * module.exports ⇒ export default
 
